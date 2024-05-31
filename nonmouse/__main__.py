@@ -32,15 +32,16 @@ elif pf == 'Linux':
 def main():
     cap_device, mode, kando, screenRes = tk_arg()
     dis = 0.7                           # くっつける距離の定義
-    preX, preY = 0, 0
+    preX_4, preY_4 = 0, 0
+    preX_8, preY_8 = 0, 0
     nowCli, preCli = 0, 0               # 現在、前回の左クリック状態
     norCli, prrCli = 0, 0               # 現在、前回の右クリック状態
     douCli = 0                          # ダブルクリック状態
     i, k, h = 0, 0, 0
-    LiTx, LiTy, list0x, list0y, list1x, list1y, list4x, list4y, list6x, list6y, list8x, list8y, list12x, list12y = [
+    LiTx_4, LiTy_4 = [], []
+    LiTx_8, LiTy_8, list0x, list0y, list1x, list1y, list4x, list4y, list6x, list6y, list8x, list8y, list12x, list12y = [
     ], [], [], [], [], [], [], [], [], [], [], [], [], []   # 移動平均用リスト
     moving_average = [[0] * 3 for _ in range(3)]
-    nowUgo = 1
     cap_width = 1280
     cap_height = 720
     start, c_start = float('inf'), float('inf')
@@ -101,10 +102,12 @@ def main():
             # グローバルホットキーが押されているとき ##################################################
             if can == 1:
                 # print(hand_landmarks.landmark[0])
-                # preX, preYに現在のマウス位置を代入 1回だけ実行
+                # preX_8, preY_8に現在のマウス位置を代入 1回だけ実行
                 if i == 0:
-                    preX = hand_landmarks.landmark[8].x
-                    preY = hand_landmarks.landmark[8].y
+                    preX_4 = hand_landmarks.landmark[4].x
+                    preY_4 = hand_landmarks.landmark[4].y
+                    preX_8 = hand_landmarks.landmark[8].x
+                    preY_8 = hand_landmarks.landmark[8].y
                     i += 1
 
                 # 以下で使うランドマーク座標の移動平均計算
@@ -121,104 +124,50 @@ def main():
                 landmark12 = [calculate_moving_average(hand_landmarks.landmark[12].x, ran, list12x), calculate_moving_average(
                     hand_landmarks.landmark[12].y, ran, list12y)]
 
-                # 指相対座標の基準距離、以後mediapipeから得られた距離をこの値で割る
-                absKij = calculate_distance(landmark0, landmark1)
-                # 人差し指の先端と中指の先端間のユークリッド距離
-                absUgo = calculate_distance(landmark8, landmark12) / absKij
-                # 人差し指の第２関節と親指の先端間のユークリッド距離
-                absCli = calculate_distance(landmark4, landmark6) / absKij
-
                 posx, posy = mouse.position
 
                 # 人差し指の先端をカーソルに対応
                 # カメラ座標をマウス移動量に変換
-                nowX = calculate_moving_average(
-                    hand_landmarks.landmark[8].x, ran, LiTx)
-                nowY = calculate_moving_average(
-                    hand_landmarks.landmark[8].y, ran, LiTy)
+                nowX_8 = calculate_moving_average(
+                    hand_landmarks.landmark[8].x, ran, LiTx_8)
+                nowY_8 = calculate_moving_average(
+                    hand_landmarks.landmark[8].y, ran, LiTy_8)
+                
+                nowX_4 = calculate_moving_average(
+                    hand_landmarks.landmark[4].x, ran, LiTx_4)
+                nowY_4 = calculate_moving_average(
+                    hand_landmarks.landmark[4].y, ran, LiTy_4)
 
-                dx = kando * (nowX - preX) * image_width
-                dy = kando * (nowY - preY) * image_height
+                dx_4 = kando * (nowX_4 - preX_4) * image_width
+                dy_4 = kando * (nowY_4 - preY_4) * image_height
+                dx_8 = kando * (nowX_8 - preX_8) * image_width
+                dy_8 = kando * (nowY_8 - preY_8) * image_height
 
                 if pf == 'Windows' or pf == 'Linux':     # Windows,linuxの場合、マウス移動量に0.5を足して補正
-                    dx = dx+0.5
-                    dy = dy+0.5
-                preX = nowX
-                preY = nowY
-                # print(dx, dy)
-                if posx+dx < 0:  # カーソルがディスプレイから出て戻ってこなくなる問題の防止
-                    dx = -posx
-                elif posx+dx > screenRes[0]:
-                    dx = screenRes[0]-posx
-                if posy+dy < 0:
-                    dy = -posy
-                elif posy+dy > screenRes[1]:
-                    dy = screenRes[1]-posy
+                    dx_8 = dx_8+0.5
+                    dy_8 = dy_8+0.5
 
-                # フラグ #########################################################################
-                # click状態
-                if absCli < dis:
-                    nowCli = 1          # nowCli:左クリック状態(1:click  0:non click)
-                    draw_circle(image, hand_landmarks.landmark[8].x * image_width,
-                                hand_landmarks.landmark[8].y * image_height, 20, (0, 250, 250))
-                elif absCli >= dis:
-                    nowCli = 0
-                if np.abs(dx) > 7 and np.abs(dy) > 7:
-                    k = 0                           # 「動いている」ときk=0
-                # 右クリック状態 １秒以上クリック状態&&カーソルを動かさない
-                # 「動いていない」ときでクリックされたとき
-                if nowCli == 1 and np.abs(dx) < 7 and np.abs(dy) < 7:
-                    if k == 0:          # k:クリック状態&&カーソルを動かしてない。113, 140行目でk=0にする
-                        start = time.perf_counter()
-                        k += 1
-                    end = time.perf_counter()
-                    if end-start > 1.5:
-                        norCli = 1
-                        draw_circle(image, hand_landmarks.landmark[8].x * image_width,
-                                    hand_landmarks.landmark[8].y * image_height, 20, (0, 0, 250))
-                else:
-                    norCli = 0
+                preX_4 = nowX_4
+                preY_4 = nowY_4
+                preX_8 = nowX_8
+                preY_8 = nowY_8
+                if posx+dx_8 < 0:  # カーソルがディスプレイから出て戻ってこなくなる問題の防止
+                    dx_8 = -posx
+                elif posx+dx_8 > screenRes[0]:
+                    dx_8 = screenRes[0]-posx
+                if posy+dy_8 < 0:
+                    dy_8 = -posy
+                elif posy+dy_8 > screenRes[1]:
+                    dy_8 = screenRes[1]-posy
 
-                # 動かす###########################################################################
-                # cursor
-                if absUgo >= dis and nowUgo == 1:
-                    mouse.move(dx, dy)
-                    draw_circle(image, hand_landmarks.landmark[8].x * image_width,
-                                hand_landmarks.landmark[8].y * image_height, 8, (250, 0, 0))
-                # left click
-                if nowCli == 1 and nowCli != preCli:
-                    if h == 1:                                  # 右クリック終わった直後状態：左クリックしない
-                        h = 0
-                    elif h == 0:                                # 普段の状態
-                        mouse.press(Button.left)
-                    # print('Click')
-                # left click release
-                if nowCli == 0 and nowCli != preCli:
-                    mouse.release(Button.left)
-                    k = 0
-                    # print('Release')
-                    if douCli == 0:                             # 1回目のクリックが終わったら、時間測る
-                        c_start = time.perf_counter()
-                        douCli += 1
-                    c_end = time.perf_counter()
-                    if 10*(c_end-c_start) > 5 and douCli == 1:  # 0.5秒以内にもう一回クリックしたらダブルクリック
-                        mouse.click(Button.left, 2)             # double click
-                        douCli = 0
-                # right click
-                if norCli == 1 and norCli != prrCli:
-                    # mouse.release(Button.left)                # 何故か必要
-                    mouse.press(Button.right)
-                    mouse.release(Button.right)
-                    h = 1                                       # 右クリック終わった直後状態h=1
-                    # print("right click")
-                # scroll
-                if hand_landmarks.landmark[8].y-hand_landmarks.landmark[5].y > -0.06:
-                    mouse.scroll(0, -dy/50)                     # スクロール感度下げる
-                    draw_circle(image, hand_landmarks.landmark[8].x * image_width,
-                                hand_landmarks.landmark[8].y * image_height, 20, (0, 0, 0))
-                    nowUgo = 0
-                else:
-                    nowUgo = 1
+                mouse.move(dx_8, dy_8)
+                draw_circle(image, hand_landmarks.landmark[8].x * image_width,
+                            hand_landmarks.landmark[8].y * image_height, 8, (250, 0, 0))
+
+                if abs(dx_4) > 10:
+                    mouse.scroll(0, dx_4 / 8)
+                    draw_circle(image, hand_landmarks.landmark[4].x * image_width,
+                                hand_landmarks.landmark[4].y * image_height, 8, (0, 255, 0))
 
                 preCli = nowCli
                 prrCli = norCli
